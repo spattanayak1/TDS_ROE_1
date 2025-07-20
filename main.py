@@ -1,40 +1,34 @@
 import sqlite3
-import numpy as np
-import json
+import pandas as pd
 
-sql_file = "/content/q-sql-correlation-github-pages.sql"  # <-- Path to the SQL file
+# Load the SQL data
+conn = sqlite3.connect("retail.db")
+df = pd.read_sql_query("SELECT * FROM retail_data", conn)  # replace with your table name
 
-conn = sqlite3.connect(":memory:")
-cursor = conn.cursor()
+# Compute correlations
+corr_returns = df['Net_Sales'].corr(df['Returns'])
+corr_avg_basket = df['Net_Sales'].corr(df['Avg_Basket'])
+corr_returns_basket = df['Returns'].corr(df['Avg_Basket'])
 
-with open(sql_file, "r") as f:
-    sql_script = f.read()
-cursor.executescript(sql_script)
-
-query = """
-SELECT Returns, Avg_Basket, Net_Sales
-FROM retail_data
-"""
-rows = cursor.execute(query).fetchall()
-conn.close()
-
-returns = [row[0] for row in rows]
-avg_basket = [row[1] for row in rows]
-net_sales = [row[2] for row in rows]
-
-def corr(x, y):
-    return float(np.corrcoef(x, y)[0, 1])
-
-pairs = {
-    "Returns-Avg_Basket": corr(returns, avg_basket),
-    "Returns-Net_Sales": corr(returns, net_sales),
-    "Avg_Basket-Net_Sales": corr(avg_basket, net_sales),
+# Store correlations in a dict
+correlations = {
+    "Net_Sales-Returns": corr_returns,
+    "Net_Sales-Avg_Basket": corr_avg_basket,
+    "Returns-Avg_Basket": corr_returns_basket
 }
 
-strongest_pair = max(pairs.items(), key=lambda kv: abs(kv[1]))
+# Determine strongest correlation
+strongest = max(correlations.items(), key=lambda x: abs(x[1]))
+
+# Output JSON structure
 result = {
-    "pair": strongest_pair[0],
-    "correlation": round(strongest_pair[1], 6)
+    "pair": strongest[0],
+    "correlation": round(strongest[1], 4)
 }
 
-print(json.dumps(result, indent=2))
+# Save to file
+import json
+with open("correlation-result.json", "w") as f:
+    json.dump(result, f, indent=2)
+
+print("✅ JSON generated:", result)
